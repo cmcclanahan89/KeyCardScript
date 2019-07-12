@@ -1,0 +1,79 @@
+##This is a script to update or add card numbers to Users inside of AD.
+##Written By Cory McClanahan
+##Last Modified: 7-11-2019
+
+Import-Module ActiveDirectory
+Clear-Host
+do {
+  #Asks for SAMAccount Name
+	do { $Input = Read-Host -Prompt 'Input the User Account' 
+
+		try {
+
+			$User = Get-ADUser $Input -Properties SamAccountName | ForEach-Object { $UserName = $_.SamAccountName }
+		}
+		catch [Microsoft.ActiveDirectory.Management.ADIdentityNotFoundException]
+		{ Write-Host 'This user does not exist.' -ForegroundColor Red -BackgroundColor Black }
+	}
+	until ($Input -like $UserName) #Converts the attribute to a string. 
+	Get-ADUser -Identity $input -Properties extensionAttribute15 | 
+	ForEach-Object {
+		$CardNumber = [string]$_.extensionAttribute15
+	}
+
+	$Card = Get-ADUser -Identity $input -Properties extensionAttribute14 | 
+	ForEach-Object {
+		$Company = [string]$_.extensionAttribute14
+	}
+	if ($CardNumber -like '')
+	{   #This Returns a blank value.
+		Write-Host $Input "doesn't have a card assigned." 
+	}
+	else
+	{   #This will return the card number 
+		Write-Host $Input 'has card' $CardNumber . 
+	}
+
+	$Answer = Read-Host 'Would you like to continue? (Y/N)'
+	if ($Answer -like 'y')
+	{
+		do
+		{
+			try {
+				$Market = Read-Host -Prompt 'Input The Market ex. KX'
+				[string]$Group = '_ACM_Dealers'
+				[string]$SecGroup = -join ($Market,$Group)
+				$GroupExists = Get-ADGroup -Identity $SecGroup |
+				ForEach-Object {
+					$GroupName = [string]$_.Name }
+			}
+			catch { Write-Host $Market "is not a valid market, or the security group does not exist." -ForegroundColor Red -BackgroundColor Black }
+		}
+		while ($GroupName -notlike $SecGroup)
+
+
+		Add-ADGroupMember -Identity $SecGroup -Members $Input
+		do {
+			[string]$NewCard = Read-Host -Prompt 'Input the Card Number'
+
+			if ($NewCard.Length -gt 4)
+			{
+				Write-Host 'That Card Number is too long.'
+			}
+			if ($NewCard.Startswith("0"))
+			{
+				Write-Host 'Cards cannot start with the number 0.'
+			}
+
+		}
+		until ($Newcard -notmatch '^0' -and $NewCard.Length -le 4)
+		Set-ADUser $Input -Replace @{ extensionAttribute15 = $NewCard } #This adds the card number to attribute15 space in AD.
+		Set-ADUser $Input -Add @{ extensionAttribute14 = '5780' } #this makes sure that attribute14 is set to 5780.
+		Write-Host $Input 'now has card' $NewCard 'and' $Input 'has been added to' $SecGroup .
+
+	}
+	while ($Answer -like 'n') { break }
+
+	$Another = Read-Host 'Would you like to add another Badge? (Y/N)' }
+while ($Another -like 'y')
+exit
